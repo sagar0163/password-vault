@@ -55,3 +55,4 @@ This uses simple XOR encryption for demonstration. For production, consider:
 ## License
 
 MIT License
+# Updated
