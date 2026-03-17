@@ -1,95 +1,65 @@
-# Architecture Document: Secure Password Vault
+# Architecture Document
 
-## 1. System Overview
-
-Secure Password Vault is a Python-based terminal application that manages passwords locally. It uses a simple encryption mechanism to protect stored credentials and provides a menu-driven interface for user interaction.
-
-## 2. Architecture Diagram
+## System Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    User Interface Layer                     │
-│              (Terminal Menu System)                        │
-│              - Navigation (up/down/enter)                  │
-│              - Display (password list, strength meter)    │
-└─────────────────────────┬───────────────────────────────────┘
-                          │
-                          ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   Business Logic Layer                      │
-│  ┌─────────────────┐  ┌─────────────────┐                │
-│  │ Password        │  │ Vault           │                │
-│  │ Generator       │  │ Manager         │                │
-│  │ - Random chars  │  │ - Add/Edit/Del  │                │
-│  │ - Length config │  │ - Search        │                │
-│  │ - Strength calc │  │ - Load/Save     │                │
-│  └─────────────────┘  └─────────────────┘                │
-└─────────────────────────┬───────────────────────────────────┘
-                          │
-                          ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    Security Layer                           │
-│  ┌─────────────────┐  ┌─────────────────┐                │
-│  │ Encryption      │  │ Master Password │                │
-│  │ (XOR)          │  │ Handler         │                │
-│  └─────────────────┘  └─────────────────┘                │
-└─────────────────────────┬───────────────────────────────────┘
-                          │
-                          ▼
-┌─────────────────────────────────────────────────────────────┐
-│                     Data Layer                              │
-│              (Local File: ~/.password_vault)               │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────┐
+│            Password Vault App                │
+├─────────────────────────────────────────────┤
+│  ┌─────────────┐  ┌──────────────────────┐  │
+│  │   UI Layer  │  │   Business Logic     │  │
+│  │  (CLI Menu) │◄─┤   - Password Gen     │  │
+│  └─────────────┘  │   - Crypto Module    │  │
+│                   │   - Storage Manager  │  │
+│                   └──────────────────────┘  │
+│                           │                  │
+│                   ┌───────▼────────┐         │
+│                   │  Data Layer    │         │
+│                   │ ~/.password_vlt│         │
+│                   └────────────────┘         │
+└─────────────────────────────────────────────┘
 ```
 
-## 3. Core Components
+## Components
 
-### Password Generator
-- Generates random passwords using configurable character sets
-- Calculates password strength (0-100 score)
-- Provides strength rating (Weak/Medium/Strong)
+### 1. UI Layer (vault.py)
+- Command-line menu interface
+- User input handling
+- Display formatting
 
-### Vault Manager
-- CRUD operations for password entries
-- Search functionality
-- Auto-lock timer management
+### 2. Business Logic
+- **PasswordGenerator**: Creates random secure passwords
+- **CryptoEngine**: Handles XOR encryption/decryption
+- **VaultManager**: CRUD operations on password entries
+- **StrengthChecker**: Analyzes password complexity
 
-### Encryption Module
-- XOR-based encryption (for demonstration)
-- Master password verification
-- Secure memory handling
+### 3. Data Layer
+- JSON-based storage format
+- Encrypted file at ~/.password_vault
 
-### Clipboard Handler
-- Uses pyperclip for cross-platform clipboard access
-- Auto-clear clipboard after timeout (optional)
+## Data Flow
 
-## 4. Data Model
+1. **Add Password**: User Input → Encrypt → Write to Vault File
+2. **Get Password**: Read Vault → Decrypt → Display/Search → Copy to Clipboard
+3. **Generate Password**: Random chars → Strength Check → Return
 
-### Password Entry
-```python
-{
-    "id": "unique-id",
-    "service": "website or service name",
-    "username": "user@email.com",
-    "password": "encrypted-password",
-    "strength": 85,
-    "created_at": "timestamp"
-}
-```
+## Security Considerations
 
-### Storage Format
-JSON file stored at `~/.password_vault`, encrypted with master password.
+- Master password used as encryption key
+- XOR encryption (demonstration mode)
+- Auto-lock timer (5 minutes)
+- Clipboard auto-clear recommended
 
-## 5. File Structure
+## File Structure
 
 ```
 password-vault/
 ├── vault.py           # Main application
-├── specs/            # Documentation
-└── README.md
+├── requirements.txt   # Dependencies
+├── README.md         # Documentation
+├── SECURITY.md       # Security policy
+├── CONTRIBUTING.md   # Contribution guidelines
+└── specs/
+    ├── BRD.md        # This file
+    └── ARCHITECTURE.md
 ```
-
----
-
-*Document Version: 1.0*  
-*Created: 2026-03-17*
