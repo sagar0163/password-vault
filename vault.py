@@ -358,9 +358,6 @@ class PasswordManagerCLI:
         """Draw password generator"""
         self.draw_header('Password Generator')
         
-        if not self.generated_password:
-            self.generated_password = PasswordGenerator.generate(16)
-        
         strength = PasswordGenerator.check_strength(self.generated_password)
         
         y = 3
@@ -436,6 +433,7 @@ class PasswordManagerCLI:
                             self.draw_add_entry()
                         elif self.selected_index == 2:  # Generator
                             self.current_view = 'generator'
+                            self.generated_password = PasswordGenerator.generate(16)
                         elif self.selected_index == 4:  # Exit
                             break
                     elif self.current_view == 'list' and self.vault.entries:
@@ -454,7 +452,7 @@ class PasswordManagerCLI:
                         self.selected_index = max(0, min(self.selected_index, len(self.vault.entries) - 1))
                 
                 elif key == ord('r') and self.current_view == 'generator':
-                    self.generated_password = None
+                    self.generated_password = PasswordGenerator.generate(16)
                 
                 elif key == ord('c') and self.current_view == 'generator':
                     if self.generated_password:
