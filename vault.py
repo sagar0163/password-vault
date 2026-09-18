@@ -477,7 +477,7 @@ class PasswordManagerCLI:
 def main():
     """Entry point"""
     try:
-        curses.wrapper(PasswordManagerCLI.run)
+        curses.wrapper(lambda stdscr: PasswordManagerCLI(stdscr).run())
     except Exception as e:
         print(f"Error: {e}")
 

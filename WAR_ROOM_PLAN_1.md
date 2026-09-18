@@ -1,0 +1,4 @@
+- [x] Fix `curses.wrapper` usage in `main()` to correctly instantiate `PasswordManagerCLI` and call `run()`.
+- [ ] Fix typo `curses.nocho()` to `curses.noecho()` in `draw_login()`.
+- [ ] Ensure typing the master password does not echo characters.
+- [ ] Add a regression test for the wrapper invocation pattern in `test_vault.py`.
