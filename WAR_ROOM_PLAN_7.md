@@ -1,4 +1,4 @@
-- [ ] Add CSV import/export methods to PasswordVault
+- [x] Add CSV import/export methods to PasswordVault
 - [ ] Add CSV export/import commands to the UI menu
 - [ ] Add automatic timestamped backup in PasswordVault.save()
 - [ ] Implement real search UI (type to filter list dynamically)

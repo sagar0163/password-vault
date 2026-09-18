@@ -234,6 +234,59 @@ class PasswordVault:
         """Unlock vault"""
         self.locked = False
         self.last_activity = time.time()
+        
+    def export_csv(self, filepath: str):
+        """Export vault to CSV"""
+        import csv
+        with open(filepath, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow(['site', 'username', 'password', 'url', 'notes'])
+            for e in self.entries:
+                writer.writerow([e.site, e.username, e.password, e.url, e.notes])
+
+    def import_csv(self, filepath: str):
+        """Import vault from CSV"""
+        import csv
+        with open(filepath, 'r', newline='', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            changed = False
+            for row in reader:
+                site = row.get('site', '')
+                username = row.get('username', '')
+                password = row.get('password', '')
+                url = row.get('url', '')
+                notes = row.get('notes', '')
+                
+                if not site or not username:
+                    continue
+                
+                existing = next((e for e in self.entries if e.site == site and e.username == username), None)
+                if existing:
+                    existing.password = password
+                    existing.url = url
+                    existing.notes = notes
+                    existing.modified = datetime.now().isoformat()
+                    existing.strength = PasswordGenerator.check_strength(password)
+                    changed = True
+                else:
+                    entry = PasswordEntry(
+                        id=secrets.token_hex(8),
+                        site=site,
+                        username=username,
+                        password=password,
+                        url=url,
+                        notes=notes,
+                        created=datetime.now().isoformat(),
+                        modified=datetime.now().isoformat(),
+                        strength=PasswordGenerator.check_strength(password)
+                    )
+                    self.entries.append(entry)
+                    changed = True
+                    
+            if changed:
+                self.save()
+                self.last_activity = time.time()
+
 
 
 class PasswordManagerCLI:
