@@ -131,33 +131,46 @@ class PasswordVault:
     def load(self):
         """Load vault from file"""
         if self.vault_file.exists():
+            encrypted = self.vault_file.read_text()
+            decrypted = simple_decrypt(encrypted, self.master_password)
             try:
-                encrypted = self.vault_file.read_text()
-                decrypted = simple_decrypt(encrypted, self.master_password)
                 data = json.loads(decrypted)
+            except json.JSONDecodeError:
+                raise ValueError("Invalid master password or corrupted vault")
                 
+            if isinstance(data, list):
                 self.entries = [PasswordEntry(**e) for e in data]
-            except:
-                self.entries = []
+            elif isinstance(data, dict) and data.get("magic") == "VaultV1":
+                self.entries = [PasswordEntry(**e) for e in data.get("entries", [])]
+            else:
+                raise ValueError("Invalid vault format")
         else:
             self.entries = []
     
     def save(self):
         """Save vault to file"""
-        data = json.dumps([{
-            'id': e.id,
-            'site': e.site,
-            'username': e.username,
-            'password': e.password,
-            'url': e.url,
-            'notes': e.notes,
-            'created': e.created,
-            'modified': e.modified,
-            'strength': e.strength
-        } for e in self.entries])
+        data_dict = {
+            "magic": "VaultV1",
+            "entries": [{
+                'id': e.id,
+                'site': e.site,
+                'username': e.username,
+                'password': e.password,
+                'url': e.url,
+                'notes': e.notes,
+                'created': e.created,
+                'modified': e.modified,
+                'strength': e.strength
+            } for e in self.entries]
+        }
         
+        data = json.dumps(data_dict)
         encrypted = simple_encrypt(data, self.master_password)
-        self.vault_file.write_text(encrypted)
+        
+        temp_file = self.vault_file.with_suffix('.tmp')
+        temp_file.write_text(encrypted)
+        temp_file.chmod(0o600)
+        os.replace(temp_file, self.vault_file)
     
     def add(self, site: str, username: str, password: str, url: str = '', notes: str = ''):
         """Add a new entry"""
