@@ -328,6 +328,8 @@ class PasswordManagerCLI:
             ('🔍', 'Search passwords'),
             ('➕', 'Add new password'),
             ('📋', 'Generate password'),
+            ('📤', 'Export to CSV'),
+            ('📥', 'Import from CSV'),
             ('⚙️', 'Settings'),
             ('🚪', 'Exit'),
         ]
@@ -471,13 +473,13 @@ class PasswordManagerCLI:
                     if self.current_view == 'list' and self.vault:
                         self.selected_index = max(0, self.selected_index - 1)
                     elif self.current_view == 'menu':
-                        self.selected_index = (self.selected_index - 1) % 5
+                        self.selected_index = (self.selected_index - 1) % 7
                 
                 elif key in [curses.KEY_DOWN, ord('j')]:
                     if self.current_view == 'list' and self.vault:
                         self.selected_index = min(len(self.vault.entries) - 1, self.selected_index + 1)
                     elif self.current_view == 'menu':
-                        self.selected_index = (self.selected_index + 1) % 5
+                        self.selected_index = (self.selected_index + 1) % 7
                 
                 elif key == ord('\n'):
                     if self.current_view == 'menu':
@@ -488,7 +490,11 @@ class PasswordManagerCLI:
                         elif self.selected_index == 2:  # Generator
                             self.current_view = 'generator'
                             self.generated_password = PasswordGenerator.generate(16)
-                        elif self.selected_index == 4:  # Exit
+                        elif self.selected_index == 3:  # Export
+                            self.draw_export()
+                        elif self.selected_index == 4:  # Import
+                            self.draw_import()
+                        elif self.selected_index == 6:  # Exit
                             break
                     elif self.current_view == 'list' and self.vault.entries:
                         self.current_view = 'entry'
@@ -541,6 +547,41 @@ class PasswordManagerCLI:
         
         self.current_view = 'menu'
     
+    def draw_export(self):
+        """Draw export screen"""
+        self.draw_header('Export to CSV')
+        filepath = self.get_input('Enter export filepath (.csv): ')
+        if filepath:
+            try:
+                self.vault.export_csv(filepath)
+                self.stdscr.addstr(5, 5, f'Successfully exported to {filepath}', curses.color_pair(2))
+            except Exception as e:
+                self.stdscr.addstr(5, 5, f'Error: {e}', curses.color_pair(4))
+            self.stdscr.addstr(7, 5, 'Press any key to return to menu...')
+            self.stdscr.refresh()
+            self.stdscr.getch()
+        self.current_view = 'menu'
+        self.selected_index = 0
+
+    def draw_import(self):
+        """Draw import screen"""
+        self.draw_header('Import from CSV')
+        filepath = self.get_input('Enter import filepath (.csv): ')
+        if filepath:
+            if Path(filepath).exists():
+                try:
+                    self.vault.import_csv(filepath)
+                    self.stdscr.addstr(5, 5, f'Successfully imported from {filepath}', curses.color_pair(2))
+                except Exception as e:
+                    self.stdscr.addstr(5, 5, f'Error: {e}', curses.color_pair(4))
+            else:
+                self.stdscr.addstr(5, 5, f'File not found: {filepath}', curses.color_pair(4))
+            self.stdscr.addstr(7, 5, 'Press any key to return to menu...')
+            self.stdscr.refresh()
+            self.stdscr.getch()
+        self.current_view = 'menu'
+        self.selected_index = 0
+
     def draw_add_entry(self, default_password: str = None):
         """Draw add entry form"""
         self.draw_header('Add New Password')
