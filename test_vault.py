@@ -2,8 +2,39 @@
 
 import pytest
 from unittest.mock import Mock, patch
-from vault import PasswordVault, PasswordGenerator
+import json
+from vault import PasswordVault, PasswordGenerator, encrypt_data, decrypt_data, VaultTamperedError
 
+class TestEncryption:
+    def test_round_trip(self):
+        data = "secret_data"
+        password = "strong_password"
+        encrypted = encrypt_data(data, password)
+        assert isinstance(encrypted, bytes)
+        assert data not in str(encrypted)
+        
+        decrypted = decrypt_data(encrypted, password)
+        assert decrypted == data
+
+    def test_tamper_detection(self):
+        data = "secret_data"
+        password = "strong_password"
+        encrypted = encrypt_data(data, password)
+        
+        # Tamper with the ciphertext (last byte)
+        tampered = bytearray(encrypted)
+        tampered[-1] ^= 0x01
+        
+        with pytest.raises(VaultTamperedError):
+            decrypt_data(bytes(tampered), password)
+
+    def test_wrong_password(self):
+        data = "secret_data"
+        password = "strong_password"
+        encrypted = encrypt_data(data, password)
+        
+        with pytest.raises(VaultTamperedError):
+            decrypt_data(encrypted, "wrong_password")
 
 class TestPasswordGenerator:
     def test_generate_password_length(self):
@@ -13,18 +44,18 @@ class TestPasswordGenerator:
     
     def test_generate_password_with_special_chars(self):
         generator = PasswordGenerator()
-        password = generator.generate(length=16, symbols=True)
+        password = generator.generate(length=16, symbols=True, lowercase=False, uppercase=False, digits=False)
         # Should contain special characters
         assert any(c in password for c in '!@#$%^&*()_+-=[]{}|;:,.<>?')
     
     def test_generate_password_numbers(self):
         generator = PasswordGenerator()
-        password = generator.generate(length=16, digits=True)
+        password = generator.generate(length=16, digits=True, lowercase=False, uppercase=False, symbols=False)
         assert any(c.isdigit() for c in password)
     
     def test_generate_password_uppercase(self):
         generator = PasswordGenerator()
-        password = generator.generate(length=16, uppercase=True)
+        password = generator.generate(length=16, uppercase=True, lowercase=False, digits=False, symbols=False)
         assert any(c.isupper() for c in password)
 
 
