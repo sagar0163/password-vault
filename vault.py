@@ -485,9 +485,6 @@ class PasswordManagerCLI:
         self.vault = PasswordVault(password)
         self.master_password = password
         
-        # Try to load
-        self.vault.load()
-        
         self.current_view = 'menu'
     
     def draw_add_entry(self, default_password: str = None):
