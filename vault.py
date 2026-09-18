@@ -244,7 +244,6 @@ class PasswordManagerCLI:
         self.vault = None
         self.master_password = None
         self.current_view = 'menu'
-        self.search_query = ''
         self.selected_index = 0
         self.generated_password = None
         
