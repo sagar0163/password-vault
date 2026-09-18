@@ -364,12 +364,14 @@ class PasswordManagerCLI:
         
         return password
     
-    def get_input(self, prompt: str, y: int = 3) -> str:
+    def get_input(self, prompt: str, y: int = 3, is_password: bool = False) -> str:
         """Get user input"""
-        curses.echo()
+        if not is_password:
+            curses.echo()
         self.stdscr.addstr(y, 5, prompt)
         value = self.stdscr.getstr(y, len(prompt) + 5).decode()
-        curses.noecho()
+        if not is_password:
+            curses.noecho()
         return value
     
     def run(self):
@@ -461,7 +463,7 @@ class PasswordManagerCLI:
         
         site = self.get_input('Site/Service: ')
         username = self.get_input('Username/Email: ', 4)
-        password = self.get_input('Password: ', 5)
+        password = self.get_input('Password: ', 5, is_password=True)
         
         if not password:
             password = PasswordGenerator.generate(16)
