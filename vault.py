@@ -169,6 +169,13 @@ class PasswordVault:
         } for e in self.entries])
         
         encrypted = simple_encrypt(data, self.master_password)
+        
+        if self.vault_file.exists():
+            import shutil
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            backup_file = self.vault_file.with_name(f"{self.vault_file.name}_{timestamp}.bak")
+            shutil.copy2(self.vault_file, backup_file)
+            
         self.vault_file.write_text(encrypted)
     
     def add(self, site: str, username: str, password: str, url: str = '', notes: str = ''):
