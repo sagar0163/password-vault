@@ -1,5 +1,0 @@
-- [x] Add a stored verification marker (e.g., magic value) to `save()`.
-- [x] Update `save()` to use an atomic write with `os.replace` and `chmod 0600`.
-- [x] Update `load()` to check the verification marker and explicitly raise an error (no silent `entries = []`) on failure.
-- [x] Write tests for wrong-password rejection and no mutation.
-- [x] Write test for atomic save and correct file permissions (0600).
