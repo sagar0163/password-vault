@@ -306,6 +306,8 @@ class PasswordManagerCLI:
         self.current_view = 'menu'
         self.selected_index = 0
         self.generated_password = None
+        self.search_query = ""
+        self.current_entry = None
         
         # Setup
         curses.curs_set(0)
@@ -317,6 +319,14 @@ class PasswordManagerCLI:
         curses.init_pair(3, curses.COLOR_YELLOW, curses.COLOR_BLACK)
         curses.init_pair(4, curses.COLOR_RED, curses.COLOR_BLACK)
         curses.init_pair(5, curses.COLOR_MAGENTA, curses.COLOR_BLACK)
+
+    @property
+    def active_entries(self):
+        if not self.vault:
+            return []
+        if self.current_view == 'search':
+            return self.vault.search(self.search_query)
+        return self.vault.entries
     
     def draw_header(self, title: str):
         """Draw header"""
@@ -458,20 +468,46 @@ class PasswordManagerCLI:
             elif self.current_view == 'menu':
                 self.draw_menu()
             elif self.current_view == 'list':
-                self.draw_list(self.vault.entries)
+                self.draw_list(self.active_entries)
+            elif self.current_view == 'search':
+                self.draw_list(self.active_entries, title=f"Search: {self.search_query}_")
             elif self.current_view == 'generator':
                 self.draw_generator()
-            elif self.current_view == 'entry' and self.vault.entries:
-                self.draw_entry(self.vault.entries[self.selected_index])
+            elif self.current_view == 'entry' and self.current_entry:
+                self.draw_entry(self.current_entry)
             
             try:
                 key = self.stdscr.getch()
+                
+                if key == 27: # Esc
+                    if self.current_view == 'search':
+                        self.current_view = 'menu'
+                        self.selected_index = 0
+                        continue
+                
+                if self.current_view == 'search':
+                    if key in (curses.KEY_BACKSPACE, 127, 8):
+                        self.search_query = self.search_query[:-1]
+                        self.selected_index = 0
+                    elif key in [curses.KEY_UP, ord('k')]:
+                        self.selected_index = max(0, self.selected_index - 1)
+                    elif key in [curses.KEY_DOWN, ord('j')]:
+                        self.selected_index = min(len(self.active_entries) - 1, self.selected_index + 1)
+                    elif key == ord('\n'):
+                        if self.active_entries:
+                            self.current_entry = self.active_entries[self.selected_index]
+                            self.current_view = 'entry'
+                    elif 32 <= key <= 126:
+                        self.search_query += chr(key)
+                        self.selected_index = 0
+                    continue
                 
                 if key == ord('q'):
                     if self.current_view == 'menu':
                         break
                     elif self.current_view == 'entry':
                         self.current_view = 'list'
+                        self.current_entry = None
                     else:
                         self.current_view = 'menu'
                         self.selected_index = 0
@@ -484,14 +520,16 @@ class PasswordManagerCLI:
                 
                 elif key in [curses.KEY_DOWN, ord('j')]:
                     if self.current_view == 'list' and self.vault:
-                        self.selected_index = min(len(self.vault.entries) - 1, self.selected_index + 1)
+                        self.selected_index = min(len(self.active_entries) - 1, self.selected_index + 1)
                     elif self.current_view == 'menu':
                         self.selected_index = (self.selected_index + 1) % 7
                 
                 elif key == ord('\n'):
                     if self.current_view == 'menu':
                         if self.selected_index == 0:  # Search
-                            self.current_view = 'list'
+                            self.current_view = 'search'
+                            self.search_query = ""
+                            self.selected_index = 0
                         elif self.selected_index == 1:  # Add
                             self.draw_add_entry()
                         elif self.selected_index == 2:  # Generator
@@ -503,20 +541,22 @@ class PasswordManagerCLI:
                             self.draw_import()
                         elif self.selected_index == 6:  # Exit
                             break
-                    elif self.current_view == 'list' and self.vault.entries:
+                    elif self.current_view == 'list' and self.active_entries:
+                        self.current_entry = self.active_entries[self.selected_index]
                         self.current_view = 'entry'
                 
                 elif key == ord('d') and self.current_view == 'list':
-                    if self.vault and self.vault.entries:
-                        entry = self.vault.entries[self.selected_index]
+                    if self.vault and self.active_entries:
+                        entry = self.active_entries[self.selected_index]
                         self.vault.delete(entry.id)
+                        self.selected_index = max(0, min(self.selected_index, len(self.active_entries) - 1))
                 
                 elif key == ord('d') and self.current_view == 'entry':
-                    if self.vault and self.vault.entries:
-                        entry = self.vault.entries[self.selected_index]
-                        self.vault.delete(entry.id)
+                    if self.vault and self.current_entry:
+                        self.vault.delete(self.current_entry.id)
                         self.current_view = 'list'
-                        self.selected_index = max(0, min(self.selected_index, len(self.vault.entries) - 1))
+                        self.current_entry = None
+                        self.selected_index = max(0, min(self.selected_index, len(self.active_entries) - 1))
                 
                 elif key == ord('r') and self.current_view == 'generator':
                     self.generated_password = PasswordGenerator.generate(16)
@@ -530,12 +570,12 @@ class PasswordManagerCLI:
                         self.draw_add_entry_from_generator(self.generated_password)
                 
                 elif key == ord('c') and self.current_view == 'entry':
-                    if self.vault and self.vault.entries:
-                        copy_with_autoclear(self.vault.entries[self.selected_index].password)
+                    if self.vault and self.current_entry:
+                        copy_with_autoclear(self.current_entry.password)
                         
                 elif key == ord('u') and self.current_view == 'entry':
-                    if self.vault and self.vault.entries:
-                        copy_with_autoclear(self.vault.entries[self.selected_index].username)
+                    if self.vault and self.current_entry:
+                        copy_with_autoclear(self.current_entry.username)
                 
             except KeyboardInterrupt:
                 break
