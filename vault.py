@@ -444,9 +444,8 @@ class PasswordManagerCLI:
         
         y = 5
         self.stdscr.addstr(y, 5, 'Enter master password:')
-        curses.echo()
+        curses.noecho()
         password = self.stdscr.getstr(y, 30).decode()
-        curses.nocho()
         
         self.vault = PasswordVault(password)
         self.master_password = password
