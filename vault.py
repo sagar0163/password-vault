@@ -27,18 +27,52 @@ from dataclasses import dataclass
 from datetime import datetime
 
 
-# Simple encryption (for demonstration - use keyring in production)
-def simple_encrypt(data: str, key: str) -> str:
-    """Simple XOR encryption"""
-    result = []
-    for i, char in enumerate(data):
-        result.append(chr(ord(char) ^ ord(key[i % len(key)])))
-    return ''.join(result)
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.primitives import hashes
+from cryptography.exceptions import InvalidTag
 
+class VaultTamperedError(Exception):
+    """Raised when vault decryption fails due to invalid auth tag or tampering."""
+    pass
 
-def simple_decrypt(data: str, key: str) -> str:
-    """Simple XOR decryption"""
-    return simple_encrypt(data, key)
+def derive_key(password: str, salt: bytes) -> bytes:
+    """Derive a 256-bit key using PBKDF2-HMAC-SHA256."""
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=600_000,
+    )
+    return kdf.derive(password.encode('utf-8'))
+
+def encrypt_data(data: str, password: str) -> bytes:
+    """Encrypt data using AES-256-GCM and PBKDF2."""
+    salt = os.urandom(16)
+    nonce = os.urandom(12)
+    key = derive_key(password, salt)
+    aesgcm = AESGCM(key)
+    ciphertext = aesgcm.encrypt(nonce, data.encode('utf-8'), None)
+    return b'v1' + salt + nonce + ciphertext
+
+def decrypt_data(data: bytes, password: str) -> str:
+    """Decrypt data using AES-256-GCM and PBKDF2."""
+    if len(data) < 2 + 16 + 12:
+        raise ValueError("Invalid data format")
+    version = data[:2]
+    if version != b'v1':
+        raise ValueError("Unsupported vault version")
+    salt = data[2:18]
+    nonce = data[18:30]
+    ciphertext = data[30:]
+    
+    key = derive_key(password, salt)
+    aesgcm = AESGCM(key)
+    try:
+        plaintext = aesgcm.decrypt(nonce, ciphertext, None)
+        return plaintext.decode('utf-8')
+    except InvalidTag:
+        raise VaultTamperedError("Vault authentication failed. Data may have been tampered with or incorrect password.")
 
 
 @dataclass
@@ -132,12 +166,14 @@ class PasswordVault:
         """Load vault from file"""
         if self.vault_file.exists():
             try:
-                encrypted = self.vault_file.read_text()
-                decrypted = simple_decrypt(encrypted, self.master_password)
+                encrypted = self.vault_file.read_bytes()
+                decrypted = decrypt_data(encrypted, self.master_password)
                 data = json.loads(decrypted)
                 
                 self.entries = [PasswordEntry(**e) for e in data]
-            except:
+            except VaultTamperedError:
+                raise
+            except Exception:
                 self.entries = []
         else:
             self.entries = []
@@ -156,8 +192,8 @@ class PasswordVault:
             'strength': e.strength
         } for e in self.entries])
         
-        encrypted = simple_encrypt(data, self.master_password)
-        self.vault_file.write_text(encrypted)
+        encrypted = encrypt_data(data, self.master_password)
+        self.vault_file.write_bytes(encrypted)
     
     def add(self, site: str, username: str, password: str, url: str = '', notes: str = ''):
         """Add a new entry"""
