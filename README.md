@@ -21,9 +21,11 @@ python3 vault.py
 ## Usage
 
 ### Menu Options
-- 🔍 Search passwords
+- 🔍 Search passwords (type to dynamically filter)
 - ➕ Add new password
 - 📋 Generate password
+- 📤 Export to CSV
+- 📥 Import from CSV
 - ⚙️ Settings
 - 🚪 Exit
 
@@ -42,8 +44,9 @@ python3 vault.py
 | 75-100 | 🟢 Strong |
 
 ## Data Storage
-
+ 
 Passwords stored encrypted in: `~/.password_vault`
+Automatic timestamped backups are created alongside the vault file before every save.
 
 ## Security Note
 
