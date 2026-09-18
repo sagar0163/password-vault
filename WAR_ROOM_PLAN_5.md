@@ -1,7 +1,0 @@
-- [x] Make `vault_file` path injectable in `PasswordVault.__init__` in `vault.py`.
-- [x] Rewrite `test_vault.py` to use `tmp_path` fixture for vault files.
-- [x] Mock `pyperclip` in `test_vault.py` or `vault.py` to avoid touching the real clipboard.
-- [x] Add tests for `encrypt/decrypt` round-trip in `test_vault.py`.
-- [x] Add test for wrong-password-rejected in `test_vault.py`.
-- [x] Add test for tampered-file-detected in `test_vault.py`.
-- [x] Ensure all tests pass (`pytest`) and do not write to `~/.password_vault`.
