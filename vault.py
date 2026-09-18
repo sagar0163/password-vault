@@ -130,9 +130,9 @@ class PasswordGenerator:
 class PasswordVault:
     """Password vault manager"""
     
-    def __init__(self, master_password: str):
+    def __init__(self, master_password: str, vault_file: Optional[Path] = None):
         self.master_password = master_password
-        self.vault_file = Path.home() / '.password_vault'
+        self.vault_file = vault_file if vault_file is not None else Path.home() / '.password_vault'
         self.entries: List[PasswordEntry] = []
         self.locked = False
         self.last_activity = time.time()
