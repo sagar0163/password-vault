@@ -387,6 +387,7 @@ class PasswordManagerCLI:
         """Main loop"""
         while True:
             if self.vault and self.vault.is_locked():
+                self.vault.entries = []
                 self.vault = None
                 self.master_password = None
             

@@ -2,4 +2,4 @@
 - [x] Remove `search_query` from `vault.py`.
 - [x] Move password generation out of `draw_generator` to state transitions ('r' and entry to generator view).
 - [x] Remove duplicate `load()` call in `draw_login`.
-- [ ] On lock, zeroize in-memory entries (e.g. `self.vault.entries = []`).
+- [x] On lock, zeroize in-memory entries (e.g. `self.vault.entries = []`).
