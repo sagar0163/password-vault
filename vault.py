@@ -25,7 +25,19 @@ from pathlib import Path
 from typing import List, Dict, Optional
 from dataclasses import dataclass
 from datetime import datetime
+import threading
 
+def clear_clipboard(expected_text: str, delay: int = 45):
+    """Clear clipboard after delay if it still contains the expected text."""
+    time.sleep(delay)
+    if pyperclip.paste() == expected_text:
+        pyperclip.copy('')
+
+def copy_with_autoclear(text: str, delay: int = 45):
+    """Copy text to clipboard and clear it after delay."""
+    pyperclip.copy(text)
+    thread = threading.Thread(target=clear_clipboard, args=(text, delay), daemon=True)
+    thread.start()
 
 # Simple encryption (for demonstration - use keyring in production)
 def simple_encrypt(data: str, key: str) -> str:
@@ -234,6 +246,7 @@ class PasswordManagerCLI:
         self.current_view = 'menu'
         self.search_query = ''
         self.selected_index = 0
+        self.generated_password = None
         
         # Setup
         curses.curs_set(0)
@@ -346,13 +359,15 @@ class PasswordManagerCLI:
         """Draw password generator"""
         self.draw_header('Password Generator')
         
-        password = PasswordGenerator.generate(16)
-        strength = PasswordGenerator.check_strength(password)
+        if not self.generated_password:
+            self.generated_password = PasswordGenerator.generate(16)
+        
+        strength = PasswordGenerator.check_strength(self.generated_password)
         
         y = 3
         self.stdscr.addstr(y, 5, 'Generated Password:', curses.color_pair(1))
         y += 1
-        self.stdscr.addstr(y, 5, password, curses.color_pair(2) | curses.A_BOLD)
+        self.stdscr.addstr(y, 5, self.generated_password, curses.color_pair(2) | curses.A_BOLD)
         y += 2
         
         bar = '█' * (strength // 5) + '░' * (20 - strength // 5)
@@ -361,15 +376,15 @@ class PasswordManagerCLI:
         
         self.stdscr.addstr(y, 5, '[r] Regenerate | [c] Copy | [s] Save | [q] Back')
         self.stdscr.refresh()
-        
-        return password
     
-    def get_input(self, prompt: str, y: int = 3) -> str:
+    def get_input(self, prompt: str, y: int = 3, is_password: bool = False) -> str:
         """Get user input"""
-        curses.echo()
+        if not is_password:
+            curses.echo()
         self.stdscr.addstr(y, 5, prompt)
         value = self.stdscr.getstr(y, len(prompt) + 5).decode()
-        curses.noecho()
+        if not is_password:
+            curses.noecho()
         return value
     
     def run(self):
@@ -387,6 +402,8 @@ class PasswordManagerCLI:
                 self.draw_list(self.vault.entries)
             elif self.current_view == 'generator':
                 self.draw_generator()
+            elif self.current_view == 'entry' and self.vault.entries:
+                self.draw_entry(self.vault.entries[self.selected_index])
             
             try:
                 key = self.stdscr.getch()
@@ -394,6 +411,8 @@ class PasswordManagerCLI:
                 if key == ord('q'):
                     if self.current_view == 'menu':
                         break
+                    elif self.current_view == 'entry':
+                        self.current_view = 'list'
                     else:
                         self.current_view = 'menu'
                         self.selected_index = 0
@@ -421,19 +440,38 @@ class PasswordManagerCLI:
                         elif self.selected_index == 4:  # Exit
                             break
                     elif self.current_view == 'list' and self.vault.entries:
-                        entry = self.vault.entries[self.selected_index]
-                        self.draw_entry(entry)
+                        self.current_view = 'entry'
                 
                 elif key == ord('d') and self.current_view == 'list':
                     if self.vault and self.vault.entries:
                         entry = self.vault.entries[self.selected_index]
                         self.vault.delete(entry.id)
                 
+                elif key == ord('d') and self.current_view == 'entry':
+                    if self.vault and self.vault.entries:
+                        entry = self.vault.entries[self.selected_index]
+                        self.vault.delete(entry.id)
+                        self.current_view = 'list'
+                        self.selected_index = max(0, min(self.selected_index, len(self.vault.entries) - 1))
+                
                 elif key == ord('r') and self.current_view == 'generator':
-                    self.draw_generator()
+                    self.generated_password = None
                 
                 elif key == ord('c') and self.current_view == 'generator':
-                    pass  # Copy to clipboard
+                    if self.generated_password:
+                        copy_with_autoclear(self.generated_password)
+                
+                elif key == ord('s') and self.current_view == 'generator':
+                    if self.generated_password:
+                        self.draw_add_entry_from_generator(self.generated_password)
+                
+                elif key == ord('c') and self.current_view == 'entry':
+                    if self.vault and self.vault.entries:
+                        copy_with_autoclear(self.vault.entries[self.selected_index].password)
+                        
+                elif key == ord('u') and self.current_view == 'entry':
+                    if self.vault and self.vault.entries:
+                        copy_with_autoclear(self.vault.entries[self.selected_index].username)
                 
             except KeyboardInterrupt:
                 break
@@ -455,22 +493,31 @@ class PasswordManagerCLI:
         
         self.current_view = 'menu'
     
-    def draw_add_entry(self):
+    def draw_add_entry(self, default_password: str = None):
         """Draw add entry form"""
         self.draw_header('Add New Password')
         
         site = self.get_input('Site/Service: ')
         username = self.get_input('Username/Email: ', 4)
-        password = self.get_input('Password: ', 5)
         
-        if not password:
-            password = PasswordGenerator.generate(16)
+        if default_password:
+            self.stdscr.addstr(5, 5, f'Password: (using generated)')
+            password = default_password
+        else:
+            password = self.get_input('Password: ', 5, is_password=True)
+            if not password:
+                password = PasswordGenerator.generate(16)
         
         url = self.get_input('URL (optional): ', 6)
         notes = self.get_input('Notes (optional): ', 7)
         
         if site and username:
             self.vault.add(site, username, password, url, notes)
+            self.current_view = 'menu'
+            self.selected_index = 0
+            
+    def draw_add_entry_from_generator(self, password: str):
+        self.draw_add_entry(default_password=password)
 
 
 def main():
