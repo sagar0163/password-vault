@@ -1,5 +1,0 @@
-- [x] Add CSV import/export methods to PasswordVault
-- [x] Add CSV export/import commands to the UI menu
-- [x] Add automatic timestamped backup in PasswordVault.save()
-- [x] Implement real search UI (type to filter list dynamically)
-- [x] Update README to document new commands
