@@ -8,7 +8,7 @@
 
 ## Features
 1. **Password Generator** - Generate strong, random passwords
-2. **Encrypted Storage** - XOR encryption with master password protection
+2. **Encrypted Storage** - AES-256-GCM authenticated encryption with PBKDF2 master-password protection
 3. **Quick Search** - Fast search through stored passwords
 4. **Clipboard Integration** - One-click copy to clipboard
 5. **Password Strength Checker** - Evaluate password strength (0-100 score)
@@ -16,9 +16,9 @@
 
 ## Tech Stack
 - **Language**: Python 3
-- **Dependencies**: pyperclip (clipboard), cryptography (optional for production)
+- **Dependencies**: pyperclip (clipboard), cryptography (AES-256-GCM encryption)
 - **Storage**: Local file (~/.password_vault)
-- **Encryption**: XOR (demonstration) / AES (production recommendation)
+- **Encryption**: AES-256-GCM with PBKDF2-HMAC-SHA256 key derivation
 
 ## User Stories
 1. As a user, I want to generate strong passwords so that my accounts are secure
@@ -34,7 +34,6 @@
 - Master password for encryption/decryption
 
 ## Future Enhancements
-- AES-256 encryption instead of XOR
 - Import/Export functionality
 - Password categories/folders
 - Browser integration
