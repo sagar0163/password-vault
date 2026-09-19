@@ -131,3 +131,21 @@ class TestMainApp:
             wrapper_arg(mock_stdscr)
             MockCLI.assert_called_once_with(mock_stdscr)
             MockCLI.return_value.run.assert_called_once()
+
+    def test_save_atomic_and_permissions(self, tmp_path):
+        import os
+        import stat
+        vault_file = tmp_path / "test.vault"
+        vault = PasswordVault("correct_password", vault_file=vault_file)
+        vault.add("gmail", "user", "pass")
+        
+        # Verify file exists
+        assert vault_file.exists()
+        
+        # Verify permissions are 0600
+        mode = os.stat(vault_file).st_mode
+        assert stat.S_IMODE(mode) == 0o600
+        
+        # Ensure no residual temp file
+        temp_file = vault_file.with_suffix('.tmp')
+        assert not temp_file.exists()
