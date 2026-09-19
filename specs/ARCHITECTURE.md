@@ -29,7 +29,7 @@
 
 ### 2. Business Logic
 - **PasswordGenerator**: Creates random secure passwords
-- **CryptoEngine**: Handles XOR encryption/decryption
+- **CryptoEngine**: Handles AES-256-GCM encryption/decryption (PBKDF2-HMAC-SHA256 key derivation)
 - **VaultManager**: CRUD operations on password entries
 - **StrengthChecker**: Analyzes password complexity
 
@@ -45,8 +45,8 @@
 
 ## Security Considerations
 
-- Master password used as encryption key
-- XOR encryption (demonstration mode)
+- Master password stretched via PBKDF2-HMAC-SHA256 (600,000 iterations, random salt)
+- AES-256-GCM authenticated encryption (tamper detection)
 - Auto-lock timer (5 minutes)
 - Clipboard auto-clear recommended
 

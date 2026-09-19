@@ -1,10 +1,15 @@
 """Unit tests for Password Vault"""
 
 import pytest
-import json
 from unittest.mock import Mock, patch
 from pathlib import Path
-from vault import PasswordVault, PasswordGenerator, simple_encrypt, simple_decrypt
+from vault import (
+    PasswordVault,
+    PasswordGenerator,
+    VaultError,
+    vault_encrypt,
+    vault_decrypt,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -62,10 +67,11 @@ class TestPasswordVault:
         vault_file = tmp_path / "test.vault"
         vault = PasswordVault("correct_password", vault_file=vault_file)
         vault.add("gmail", "user", "pass")
-        
-        # When trying to load with wrong password, JSON decoding will fail and it should load an empty vault
-        vault_wrong = PasswordVault("wrong_password", vault_file=vault_file)
-        assert len(vault_wrong.entries) == 0
+
+        # Wrong password must fail GCM authentication with an explicit error,
+        # not silently load an empty vault.
+        with pytest.raises(VaultError):
+            PasswordVault("wrong_password", vault_file=vault_file)
 
     def test_tampered_file_detected(self, tmp_path):
         vault_file = tmp_path / "test.vault"
@@ -73,23 +79,40 @@ class TestPasswordVault:
         vault.add("gmail", "user", "pass")
 
         # Tamper with the encrypted content
-        encrypted = vault_file.read_text()
-        tampered = encrypted[:-1] + ("a" if encrypted[-1] != "a" else "b")
-        vault_file.write_text(tampered)
+        encrypted = vault_file.read_bytes()
+        tampered = encrypted[:-1] + (b"a" if encrypted[-1] != ord("a") else b"b")
+        vault_file.write_bytes(tampered)
 
-        vault_tampered = PasswordVault("correct_password", vault_file=vault_file)
-        # Should catch JSONDecodeError or similar during decryption/loading and reset entries to []
-        assert len(vault_tampered.entries) == 0
+        # GCM auth failure must surface as an explicit error, not silent data.
+        with pytest.raises(VaultError):
+            PasswordVault("correct_password", vault_file=vault_file)
 
 
 class TestCrypto:
-    def test_simple_encrypt_decrypt(self):
-        plaintext = "secret_data"
-        key = "my_key"
-        encrypted = simple_encrypt(plaintext, key)
+    def test_vault_encrypt_decrypt_round_trip(self):
+        plaintext = b"secret_data"
+        master_password = "correct horse battery staple"
+        encrypted = vault_encrypt(plaintext, master_password)
         assert encrypted != plaintext
-        decrypted = simple_decrypt(encrypted, key)
-        assert decrypted == plaintext
+        assert vault_decrypt(encrypted, master_password) == plaintext
+
+    def test_vault_encrypt_wrong_password_rejected(self):
+        plaintext = b"secret_data"
+        encrypted = vault_encrypt(plaintext, "right_password")
+        with pytest.raises(VaultError):
+            vault_decrypt(encrypted, "wrong_password")
+
+    def test_vault_encrypt_not_tamper_evident(self):
+        plaintext = b"secret_data"
+        master_password = "correct horse battery staple"
+        encrypted = bytearray(vault_encrypt(plaintext, master_password))
+        encrypted[-1] ^= 0xFF  # flip a bit in the ciphertext
+        with pytest.raises(VaultError):
+            vault_decrypt(bytes(encrypted), master_password)
+
+    def test_vault_encrypt_invalid_header_rejected(self):
+        with pytest.raises(VaultError):
+            vault_decrypt(b"garbage-not-a-vault", "key")
 
 
 class TestMainApp:
