@@ -27,6 +27,11 @@ from dataclasses import dataclass
 from datetime import datetime
 import threading
 
+from cryptography.exceptions import InvalidTag
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
 def clear_clipboard(expected_text: str, delay: int = 45):
     """Clear clipboard after delay if it still contains the expected text."""
     time.sleep(delay)
@@ -39,18 +44,63 @@ def copy_with_autoclear(text: str, delay: int = 45):
     thread = threading.Thread(target=clear_clipboard, args=(text, delay), daemon=True)
     thread.start()
 
-# Simple encryption (for demonstration - use keyring in production)
-def simple_encrypt(data: str, key: str) -> str:
-    """Simple XOR encryption"""
-    result = []
-    for i, char in enumerate(data):
-        result.append(chr(ord(char) ^ ord(key[i % len(key)])))
-    return ''.join(result)
+# Encryption: PBKDF2-HMAC-SHA256 key derivation + AES-256-GCM authenticated encryption
+PBKDF2_ITERATIONS = 600_000
+SALT_SIZE = 16
+NONCE_SIZE = 12
+MAGIC = b'PVLT'
+VERSION = 1
+HEADER_SIZE = 4 + 1 + SALT_SIZE + NONCE_SIZE  # magic || version || salt || nonce
 
 
-def simple_decrypt(data: str, key: str) -> str:
-    """Simple XOR decryption"""
-    return simple_encrypt(data, key)
+class VaultError(Exception):
+    """Raised when the vault cannot be decrypted (wrong password or tampered file)."""
+
+
+def _derive_key(master_password: str, salt: bytes) -> bytes:
+    """Derive a 32-byte AES key from the master password using PBKDF2-HMAC-SHA256."""
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=PBKDF2_ITERATIONS,
+    )
+    return kdf.derive(master_password.encode('utf-8'))
+
+
+def vault_encrypt(data: bytes, master_password: str) -> bytes:
+    """Encrypt and authenticate data with AES-256-GCM.
+
+    Output layout: magic || version || salt || nonce || ciphertext(+tag)
+    """
+    salt = secrets.token_bytes(SALT_SIZE)
+    nonce = secrets.token_bytes(NONCE_SIZE)
+    cipher = AESGCM(_derive_key(master_password, salt))
+    ciphertext = cipher.encrypt(nonce, data, None)
+    return MAGIC + bytes([VERSION]) + salt + nonce + ciphertext
+
+
+def vault_decrypt(data: bytes, master_password: str) -> bytes:
+    """Decrypt and verify data encrypted by ``vault_encrypt``.
+
+    Raises ``VaultError`` on a bad format, wrong password, or tampered content.
+    """
+    if len(data) < HEADER_SIZE or data[:4] != MAGIC:
+        raise VaultError('Not a valid vault file (missing header).')
+    if data[4] != VERSION:
+        raise VaultError(f'Unsupported vault format version: {data[4]}.')
+
+    salt = data[5:5 + SALT_SIZE]
+    nonce = data[5 + SALT_SIZE:HEADER_SIZE]
+    ciphertext = data[HEADER_SIZE:]
+
+    try:
+        cipher = AESGCM(_derive_key(master_password, salt))
+        return cipher.decrypt(nonce, ciphertext, None)
+    except InvalidTag:
+        raise VaultError(
+            'Vault authentication failed: wrong master password or tampered vault file.'
+        ) from None
 
 
 @dataclass
@@ -143,14 +193,10 @@ class PasswordVault:
     def load(self):
         """Load vault from file"""
         if self.vault_file.exists():
-            try:
-                encrypted = self.vault_file.read_text()
-                decrypted = simple_decrypt(encrypted, self.master_password)
-                data = json.loads(decrypted)
-                
-                self.entries = [PasswordEntry(**e) for e in data]
-            except:
-                self.entries = []
+            encrypted = self.vault_file.read_bytes()
+            decrypted = vault_decrypt(encrypted, self.master_password)
+            data = json.loads(decrypted)
+            self.entries = [PasswordEntry(**e) for e in data]
         else:
             self.entries = []
     
@@ -168,8 +214,8 @@ class PasswordVault:
             'strength': e.strength
         } for e in self.entries])
         
-        encrypted = simple_encrypt(data, self.master_password)
-        self.vault_file.write_text(encrypted)
+        encrypted = vault_encrypt(data.encode('utf-8'), self.master_password)
+        self.vault_file.write_bytes(encrypted)
     
     def add(self, site: str, username: str, password: str, url: str = '', notes: str = ''):
         """Add a new entry"""
