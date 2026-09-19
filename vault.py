@@ -215,7 +215,12 @@ class PasswordVault:
         } for e in self.entries])
         
         encrypted = vault_encrypt(data.encode('utf-8'), self.master_password)
-        self.vault_file.write_bytes(encrypted)
+        
+        temp_file = self.vault_file.with_suffix('.tmp')
+        fd = os.open(temp_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with open(fd, 'wb') as f:
+            f.write(encrypted)
+        os.replace(temp_file, self.vault_file)
     
     def add(self, site: str, username: str, password: str, url: str = '', notes: str = ''):
         """Add a new entry"""
@@ -529,10 +534,14 @@ class PasswordManagerCLI:
         curses.noecho()
         password = self.stdscr.getstr(y, 30).decode()
         
-        self.vault = PasswordVault(password)
-        self.master_password = password
-        
-        self.current_view = 'menu'
+        try:
+            self.vault = PasswordVault(password)
+            self.master_password = password
+            self.current_view = 'menu'
+        except VaultError:
+            self.stdscr.addstr(y + 2, 5, 'Error: Incorrect master password!', curses.color_pair(4) | curses.A_BOLD)
+            self.stdscr.addstr(y + 3, 5, 'Press any key to retry...')
+            self.stdscr.getch()
     
     def draw_add_entry(self, default_password: str = None):
         """Draw add entry form"""
